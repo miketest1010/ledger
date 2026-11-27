@@ -1,10 +1,10 @@
-import { BookOpen, Plus, Settings, LayoutDashboard } from 'lucide-react'
+import { ArrowLeftRight, BookOpen, Plus, Settings, LayoutDashboard } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { formatTaipeiLong, type TaipeiDate } from '@/lib/dates.ts'
 import type { Scope } from '@/lib/types.ts'
 import { cn } from '@/lib/utils.ts'
 
-export type RouteName = 'dashboard' | 'records' | 'settings' | 'edit'
+export type RouteName = 'dashboard' | 'compare' | 'records' | 'settings' | 'edit'
 
 interface ShellProps {
   scope: Scope
@@ -19,8 +19,8 @@ interface ShellProps {
 
 const SCOPES: { id: Scope; label: string; hint: string }[] = [
   { id: 'cafe', label: '諾奇意', hint: '諾奇意咖啡' },
-  { id: 'laya', label: '拉亞', hint: '拉亞漢堡 新莊店' },
-  { id: 'all', label: '兩店', hint: '兩店合計' },
+  { id: 'laya', label: '拉亞', hint: '拉亞漢堡' },
+  { id: 'all', label: '全部', hint: '全部' },
 ]
 
 export function Shell({ scope, onScope, route, onRoute, onCreate, today, flash, children }: ShellProps) {
@@ -38,6 +38,9 @@ export function Shell({ scope, onScope, route, onRoute, onCreate, today, flash, 
         <nav className="mt-8 flex flex-col gap-1">
           <SideLink active={navActive === 'dashboard'} onClick={() => onRoute('dashboard')} icon={<LayoutDashboard size={18} />}>
             總覽
+          </SideLink>
+          <SideLink active={navActive === 'compare'} onClick={() => onRoute('compare')} icon={<ArrowLeftRight size={18} />}>
+            比較
           </SideLink>
           <SideLink active={navActive === 'records'} onClick={() => onRoute('records')} icon={<BookOpen size={18} />}>
             紀錄
@@ -88,9 +91,12 @@ export function Shell({ scope, onScope, route, onRoute, onCreate, today, flash, 
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
-        <div className="grid grid-cols-4">
+        <div className="grid grid-cols-5">
           <TabButton active={navActive === 'dashboard'} onClick={() => onRoute('dashboard')}>
             總覽
+          </TabButton>
+          <TabButton active={navActive === 'compare'} onClick={() => onRoute('compare')}>
+            比較
           </TabButton>
           <TabButton active={navActive === 'records'} onClick={() => onRoute('records')}>
             紀錄

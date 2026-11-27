@@ -1,8 +1,10 @@
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { MonthMenu } from '@/components/MonthMenu.tsx'
 import { buildDashboard, type DetailRange, type MonthFacts, type StartupSummary, type Totals } from '@/lib/aggregate.ts'
 import { findCategory } from '@/lib/defaults.ts'
 import { formatDayList, formatShortDate, monthLabel, monthLabelLong, type TaipeiDate } from '@/lib/dates.ts'
 import { compactTwd, formatTwd } from '@/lib/money.ts'
+import { accountingMonths } from '@/lib/months.ts'
 import type { LedgerMode, LedgerRecord, LedgerSnapshot, Scope } from '@/lib/types.ts'
 import { cafeExpenseIncomplete, estimateCafeVat, INCOMPLETE_EXPENSE_NOTE } from '@/lib/vat.ts'
 import { cn } from '@/lib/utils.ts'
@@ -21,6 +23,7 @@ interface DashboardProps {
   onEdit: (id: string) => void
   onCreate: () => void
   onOpenSettings: () => void
+  onOpenCompare: () => void
   today: TaipeiDate
 }
 
@@ -37,7 +40,10 @@ export function Dashboard(props: DashboardProps) {
     excludeOneOff,
   })
   const business = scope === 'all' ? null : snapshot.businesses.find((item) => item.id === scope)
+  const months = accountingMonths(snapshot.records, scope)
   const detailLabel = detail.kind === 'ytd' ? '今年至今' : monthLabelLong(detail.month)
+  const focusTotals = detail.kind === 'month' ? model.detail : model.thisMonth
+  const focusLabel = detail.kind === 'month' ? monthLabelLong(detail.month) : `本月 · ${monthLabelLong(today.monthKey)}`
   const showTender = scope !== 'laya'
   const ytdIncomplete = scope !== 'laya' && model.months.some((row) => cafeExpenseIncomplete(row.month, scope))
   const vatPeriods = scope === 'laya' ? [] : estimateCafeVat(snapshot.records, today.monthKey)
@@ -45,7 +51,7 @@ export function Dashboard(props: DashboardProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-semibold">{business ? business.name : '兩店合計'}</h2>
+        <h2 className="text-2xl font-semibold">{business ? business.name : '全部'}</h2>
         <p className="mt-1 text-sm leading-6 text-muted">
           {business
             ? `${business.englishName} · ${business.place} · ${business.phase === 'operating' ? '營業中' : '籌備中'}。${business.description}`
@@ -53,8 +59,22 @@ export function Dashboard(props: DashboardProps) {
         </p>
       </div>
 
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0 flex-1 sm:max-w-sm">
+          <MonthMenu
+            months={months}
+            value={detail.kind === 'month' ? detail.month : 'ytd'}
+            onChange={(value) => props.onDetail(value === 'ytd' ? { kind: 'ytd' } : { kind: 'month', month: value })}
+            extra={{ value: 'ytd', label: '今年至今' }}
+          />
+        </div>
+        <button type="button" className="h-11 shrink-0 rounded-xl border border-line bg-card px-3 text-sm" onClick={props.onOpenCompare}>
+          月對月比較
+        </button>
+      </div>
+
       <div className="grid gap-3 lg:grid-cols-2">
-        <Kpi label={`本月 · ${monthLabelLong(today.monthKey)}`} totals={model.thisMonth} showTender={showTender} />
+        <Kpi label={focusLabel} totals={focusTotals} showTender={showTender} />
         <Kpi
           label={`${today.year} 年至今`}
           totals={model.ytd}
@@ -75,7 +95,7 @@ export function Dashboard(props: DashboardProps) {
           </ul>
         </section>
       )}
-      <FactsNote facts={model.thisFacts} />
+      {detail.kind === 'month' && model.detailFacts ? <FactsNote facts={model.detailFacts} /> : <FactsNote facts={model.thisFacts} />}
       {(model.thisMonth.oneOff > 0 || model.ytd.oneOff > 0) && (
         <label className="flex items-start gap-2 rounded-xl border border-line bg-card px-3 py-3 text-sm leading-6">
           <input
@@ -168,7 +188,7 @@ export function Dashboard(props: DashboardProps) {
             </tbody>
           </table>
         </div>
-        <p className="mt-2 text-xs text-muted">點一個月，下面的分類和廠商會跟著變。</p>
+        <p className="mt-2 text-xs text-muted">點一個月，或用上面的月份選單，下面的分類和廠商會跟著變。</p>
       </section>
 
       <section className="rounded-2xl border border-line bg-card p-4 md:p-5">
@@ -208,12 +228,14 @@ export function Dashboard(props: DashboardProps) {
               <FilterChip active={detail.kind === 'ytd'} onClick={() => props.onDetail({ kind: 'ytd' })}>
                 今年至今
               </FilterChip>
-              <FilterChip
-                active={detail.kind === 'month' && detail.month === today.monthKey}
-                onClick={() => props.onDetail({ kind: 'month', month: today.monthKey })}
-              >
-                本月
-              </FilterChip>
+              {months.includes(today.monthKey) && (
+                <FilterChip
+                  active={detail.kind === 'month' && detail.month === today.monthKey}
+                  onClick={() => props.onDetail({ kind: 'month', month: today.monthKey })}
+                >
+                  本月
+                </FilterChip>
+              )}
             </div>
           </div>
           {detail.kind === 'month' && cafeExpenseIncomplete(detail.month, scope) && (
@@ -308,7 +330,14 @@ export function Dashboard(props: DashboardProps) {
         <StartupCard summary={model.startup} onEdit={props.onEdit} onOpenSettings={props.onOpenSettings} />
       )}
 
-      <Recent records={snapshot.records} businesses={snapshot.businesses} scope={scope} onEdit={props.onEdit} onCreate={props.onCreate} />
+      <Recent
+        records={snapshot.records}
+        businesses={snapshot.businesses}
+        scope={scope}
+        month={detail.kind === 'month' ? detail.month : null}
+        onEdit={props.onEdit}
+        onCreate={props.onCreate}
+      />
     </div>
   )
 }
@@ -462,17 +491,20 @@ function Recent({
   records,
   businesses,
   scope,
+  month,
   onEdit,
   onCreate,
 }: {
   records: LedgerRecord[]
   businesses: LedgerSnapshot['businesses']
   scope: Scope
+  month: string | null
   onEdit: (id: string) => void
   onCreate: () => void
 }) {
   const rows = records
     .filter((record) => scope === 'all' || record.businessId === scope)
+    .filter((record) => month === null || record.accountingMonth === month)
     .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
     .slice(0, 6)
   return (

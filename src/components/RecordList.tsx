@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react'
+import { MonthMenu } from '@/components/MonthMenu.tsx'
 import { Button } from '@/components/ui/button.tsx'
 import { Input } from '@/components/ui/input.tsx'
 import { findBusiness, findCategory } from '@/lib/defaults.ts'
-import { formatPeriod, formatShortDate, monthLabelLong } from '@/lib/dates.ts'
+import { formatPeriod, formatShortDate } from '@/lib/dates.ts'
 import { formatTwd } from '@/lib/money.ts'
+import { accountingMonths } from '@/lib/months.ts'
 import type { EntryType, LedgerRecord, LedgerSnapshot, Scope } from '@/lib/types.ts'
 import { TYPE_LABEL } from '@/lib/types.ts'
 import { cn, fieldClass } from '@/lib/utils.ts'
@@ -12,27 +14,19 @@ interface RecordListProps {
   snapshot: LedgerSnapshot
   scope: Scope
   month: string
+  onMonth: (month: string) => void
   onEdit: (id: string) => void
   onCreate: () => void
 }
 
-export function RecordList({ snapshot, scope, month, onEdit, onCreate }: RecordListProps) {
-  const [monthFilter, setMonthFilter] = useState(month)
+export function RecordList({ snapshot, scope, month, onMonth, onEdit, onCreate }: RecordListProps) {
   const [typeFilter, setTypeFilter] = useState<EntryType | 'all'>('all')
   const [query, setQuery] = useState('')
-  const months = useMemo(() => {
-    const keys = new Set(
-      snapshot.records
-        .filter((record) => scope === 'all' || record.businessId === scope)
-        .map((record) => record.accountingMonth),
-    )
-    keys.add(month)
-    return [...keys].sort().reverse()
-  }, [month, scope, snapshot.records])
+  const months = useMemo(() => accountingMonths(snapshot.records, scope), [scope, snapshot.records])
 
   const rows = snapshot.records
     .filter((record) => scope === 'all' || record.businessId === scope)
-    .filter((record) => monthFilter === 'all' || record.accountingMonth === monthFilter)
+    .filter((record) => month === 'all' || record.accountingMonth === month)
     .filter((record) => typeFilter === 'all' || record.type === typeFilter)
     .filter((record) => matches(record, snapshot, query))
     .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
@@ -46,16 +40,14 @@ export function RecordList({ snapshot, scope, month, onEdit, onCreate }: RecordL
         </div>
         <Button onClick={onCreate}>記一筆</Button>
       </div>
-      <div className="grid gap-2 sm:grid-cols-[1fr_10rem_8rem]">
+      <MonthMenu
+        months={months}
+        value={month}
+        onChange={onMonth}
+        extra={{ value: 'all', label: '全部月份' }}
+      />
+      <div className="grid gap-2 sm:grid-cols-[1fr_8rem]">
         <Input value={query} placeholder="搜尋備註、廠商、分類" onChange={(event) => setQuery(event.target.value)} />
-        <select className={fieldClass} value={monthFilter} onChange={(event) => setMonthFilter(event.target.value)}>
-          <option value="all">全部月份</option>
-          {months.map((item) => (
-            <option key={item} value={item}>
-              {monthLabelLong(item)}
-            </option>
-          ))}
-        </select>
         <select
           className={fieldClass}
           value={typeFilter}

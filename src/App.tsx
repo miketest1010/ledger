@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { CompareView } from '@/components/CompareView.tsx'
 import { Dashboard } from '@/components/Dashboard.tsx'
 import { RecordForm } from '@/components/RecordForm.tsx'
 import { RecordList } from '@/components/RecordList.tsx'
@@ -8,7 +9,14 @@ import { blankDraft, draftFromRecord, type Draft } from '@/lib/draft.ts'
 import { taipeiToday } from '@/lib/dates.ts'
 import { useLedger } from '@/hooks/useLedger.ts'
 import type { DetailRange } from '@/lib/aggregate.ts'
+import { accountingMonths } from '@/lib/months.ts'
 import type { LedgerMode, LedgerRecord, Scope } from '@/lib/types.ts'
+
+function resolveFocusMonth(choice: string | null | undefined, months: string[]): string | null {
+  if (choice && months.includes(choice)) return choice
+  if (choice === null) return null
+  return months[0] ?? null
+}
 
 function readScope(): Scope {
   const saved = localStorage.getItem('shuangdian-scope')
@@ -21,11 +29,18 @@ export default function App() {
   const [route, setRoute] = useState<RouteName>('dashboard')
   const [scope, setScope] = useState<Scope>(readScope)
   const [mode, setMode] = useState<LedgerMode>('accounting')
-  const [detail, setDetail] = useState<DetailRange>({ kind: 'ytd' })
+  const [focusChoice, setFocusChoice] = useState<string | null | undefined>(undefined)
   const [includePlanned, setIncludePlanned] = useState(false)
   const [excludeOneOff, setExcludeOneOff] = useState(false)
   const [draft, setDraft] = useState<Draft | null>(null)
   const [flash, setFlash] = useState<string | null>(null)
+
+  const monthsInScope = useMemo(
+    () => (ledger.snapshot ? accountingMonths(ledger.snapshot.records, scope) : []),
+    [ledger.snapshot, scope],
+  )
+  const focusMonth = resolveFocusMonth(focusChoice, monthsInScope)
+  const detail: DetailRange = focusMonth ? { kind: 'month', month: focusMonth } : { kind: 'ytd' }
 
   useEffect(() => {
     localStorage.setItem('shuangdian-scope', scope)
@@ -70,7 +85,7 @@ export default function App() {
         mode={mode}
         onMode={setMode}
         detail={detail}
-        onDetail={setDetail}
+        onDetail={(next) => setFocusChoice(next.kind === 'month' ? next.month : null)}
         includePlanned={includePlanned}
         onIncludePlanned={setIncludePlanned}
         excludeOneOff={excludeOneOff}
@@ -78,12 +93,22 @@ export default function App() {
         onEdit={openEdit}
         onCreate={openNew}
         onOpenSettings={() => setRoute('settings')}
+        onOpenCompare={() => setRoute('compare')}
         today={today}
       />
     )
+  } else if (route === 'compare') {
+    body = <CompareView snapshot={ledger.snapshot} scope={scope} preferredMonth={focusMonth ?? null} />
   } else if (route === 'records') {
     body = (
-      <RecordList snapshot={ledger.snapshot} scope={scope} month={today.monthKey} onEdit={openEdit} onCreate={openNew} />
+      <RecordList
+        snapshot={ledger.snapshot}
+        scope={scope}
+        month={focusMonth ?? 'all'}
+        onMonth={(month) => setFocusChoice(month === 'all' ? null : month)}
+        onEdit={openEdit}
+        onCreate={openNew}
+      />
     )
   } else if (route === 'settings') {
     body = (
